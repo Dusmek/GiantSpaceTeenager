@@ -159,7 +159,8 @@ func _process(delta):
 					s=1
 				allinst[i].force = -allinst[i].speed*s#(max(0,(200-l)/200))
 			else:
-				allinst[i].force = p*2500000/(max(25000,p.length_squared()*p.length_squared()))
+				l=max(0,abs(l-100)*(-1)+100)
+				allinst[i].force = sqrt(allinst[i].mass)*p.normalized()*l/4
 		else:
 			allinst[i].force=Vector2(0,0)
 			
