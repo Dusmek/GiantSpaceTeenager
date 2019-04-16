@@ -1,5 +1,4 @@
 extends Node
- 
 
 onready var EMessageState = preload("res://PhoneManager/EMessageState.gd").new();
 
