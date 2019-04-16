@@ -1,8 +1,5 @@
 extends Node2D
 
-# Declare member variables here. Examples:
-# var a = 2
-# var b = "text"
 var minx = 100
 var maxx = 700
 var miny = 100
@@ -12,31 +9,64 @@ var maxinstupdateperframe = 25*500;
 var currpostponeind = 0
 
 var allinst = []
-var allspeeds = []
-var allforces = []
-var allmases = [];
 
 class obj :
-	var position
+	var position=Vector2(0,0)
+	var speed = Vector2(0,0)
+	var force = Vector2(0,0)
+	var mass = 0.2
+	var radius = 1
+	var currind=0
 	var instances=[]
-	#func update():
-		#tu sie bedzie dzial update wszystkich pozycji dzieci
-	
-	
+	var biggestdist=0
+	func init(inst):
+		instances.append(inst)
+		position = inst.position
+		pass
+	func update(delta):#tu sie bedzie dzial update wszystkich pozycji dzieci
+		speed+=force*delta
+		var dp = speed*delta
+		position+=dp
+		for inst in instances:
+			inst.position += dp
+			inst.force-=inst.speed*inst.speed.length()/20
+			inst.myupdate(delta)
+			inst.force=Vector2(0,0)
+		var koniec = min(instances.size(),currind+60)
+		for inst1 in range(currind,koniec):
+			instances[inst1].force+=(position-instances[inst1].position)*4
+			for inst2 in instances:
+				if instances[inst1]==inst2:
+					continue
+				var d = instances[inst1].position-inst2.position
+				var lens = d.length()
+				if lens>biggestdist:
+					biggestdist=lens
+				if lens<6:
+					var n = d.normalized()
+					instances[inst1].force+=n*(12-lens)*4
+					inst2.force-=n*(12-lens)*4
+		currind = koniec
+		if currind>=instances.size():
+			radius=biggestdist*0.45
+			biggestdist=0
+			if instances.size()==1:
+				radius=0.3
+			currind=0
+		pass
+
 # Called when the node enters the scene tree for the first time.
 func _ready():
 	var el = load("res://element.tscn")
 		
-	for i in range(3500):
+	for i in range(1000):
 		var inst = el.instance()
+		inst.position = Vector2(rand_range(minx+200,maxx-200),rand_range(miny+200,maxy-200))
 		var o = obj.new()
-		allinst.append(inst)
-		allmases.append(1);
-		allforces.append(Vector2(0,0))
-		inst.position = Vector2(rand_range(minx,maxx),rand_range(miny,maxy))
-		#allspeeds.append(Vector2(0,0))
-		allspeeds.append(Vector2(inst.position.y-((miny+maxy)/2),-inst.position.x+((minx+maxx)/2))/10)
+		o.init(inst)
 		add_child(inst)
+		allinst.append(o)
+		
 	pass # Replace with function body.
 
 # Called every frame. 'delta' is the elapsed time since the previous frame.
@@ -50,55 +80,56 @@ func _process(delta):
 	var koniec = count - floor(test)
 	for i in range(currpostponeind,min(koniec,count)):
 		for j in range(i+1,allinst.size()):
-			var p1 = allinst[i].position
-			var p2 = allinst[j].position
+			var i1 = allinst[i]
+			var i2 = allinst[j]
+			
+			var p1 = i1.position
+			var p2 = i2.position
 			var l = (p1-p2).length()
-			if l <= allinst[i].scale.x*20+allinst[j].scale.x*20:
+			if l <= i1.radius+i2.radius:
 				toremove.append(j)
-				var masssum = (allmases[i] + allmases[j])
-				allinst[i].position=(allmases[i]*allinst[i].position + allmases[j]*allinst[j].position)/masssum
-				allspeeds[i]=(allmases[i]*allspeeds[i] + allmases[j]*allspeeds[j])/masssum
-				allforces[i]=(allmases[i]*allforces[i] + allmases[j]*allforces[j])/masssum
-				allmases[i]+=allmases[j]
+				var masssum = (i1.mass + i2.mass)
+				i1.position=(i1.mass*i1.position + i2.mass*i2.position)/masssum
+				i1.speed=(i1.mass*i1.speed + i2.mass*i2.speed)/masssum
+				i1.force=(i1.mass*i1.force + i2.mass*i2.force)/masssum
+				i1.mass+=i2.mass
+				for p in i2.instances:  
+					i1.instances.append(p)
+				i2.instances.clear()
 			else:
 				var f = (p1-p2).normalized()*250/max(25,(l*l))
-				allforces[i] -= allmases[j] *f
-				allforces[j] += allmases[i] *f
+				i1.force -= i2.mass *f
+				i2.force += i1.mass *f
 	
-	#zdaza sie tu problem jak dodamy dwa razy to samo do tablicy toremove
-	toremove.sort()
-	for j in range(toremove.size()):
-		if toremove.find(toremove[j]) != j:
-			continue
-		else:
-			var i = toremove.size() - 1 - j
-			allinst[toremove[i]].get_parent().remove_child(allinst[toremove[i]])
-			allinst.remove(toremove[i])
-			allmases.remove(toremove[i])
-			allspeeds.remove(toremove[i])
-			allforces.remove(toremove[i])
-		
+	for j in range(allinst.size()):
+			var i = allinst.size() - 1 - j
+			if allinst[i].instances.size() ==0:
+				allinst.remove(i)
 		
 	for i in range(allinst.size()):
-		allspeeds[i]+=allforces[i]*delta
-		allinst[i].position += allspeeds[i]*delta
-		var s = sqrt(allmases[i])
-		allinst[i].scale = Vector2(s,s)*0.05
-		if allinst[i].position.x>maxx or allinst[i].position.x<minx:
-			allinst[i].position.x = clamp(allinst[i].position.x,minx,maxx)
-			allspeeds[i].x*=-0.7
-		if allinst[i].position.y>maxy or allinst[i].position.y<miny:
-			allinst[i].position.y = clamp(allinst[i].position.y,miny,maxy)
-			allspeeds[i].y*=-0.7
+		allinst[i].update(delta)
+		
 		if(Input.is_mouse_button_pressed(BUTTON_LEFT)):
 			var p = get_viewport().get_mouse_position() - allinst[i].position
 			var l = p.length()
-			allforces[i] = p.normalized()*250000/(max(250,p.length()*p.length()))
+			allinst[i].force = p.normalized()*250000/(max(250,p.length()*p.length()))
 		else:
-			allforces[i]=Vector2(0,0)
+			allinst[i].force=Vector2(0,0)
+			
+		var sr = Vector2(maxx+minx, maxy+miny)/2
+		var lsa = allinst[i].position -sr
+		
+		var ls2 = lsa.length_squared()
+		if ls2 > (maxx-minx)*(maxx-minx)/4:
+			allinst[i].position = sr+lsa.normalized()*(maxx-minx)/2
+			allinst[i].speed *= -0.7
+		var lsn = (allinst[i].position -sr).normalized()
+		allinst[i].force += Vector2(lsn.y,-lsn.x)*0.001*ls2/max(1,allinst[i].speed.length_squared())
 		
 	print("start: " + str(currpostponeind) + " " + str(koniec))
 	currpostponeind=koniec+1
 	if currpostponeind>=allinst.size():
 		currpostponeind=0
 	pass
+
+
